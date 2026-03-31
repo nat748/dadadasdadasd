@@ -1,0 +1,841 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>HUMANITAS — The Human Family Tree</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@400;600;700&family=Crimson+Pro:ital,wght@0,300;0,400;1,300;1,400&display=swap" rel="stylesheet">
+<style>
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+:root {
+  --gold: #c9922a;
+  --gold-light: #e8b84b;
+  --gold-pale: #f5e4b0;
+  --ember: #c0441a;
+  --ink: #0d0b08;
+  --ash: #1a1510;
+  --parchment: #f2e8d0;
+  --muted: #7a6a50;
+  --glow: rgba(201,146,42,0.18);
+}
+html, body { width:100%; height:100%; background:var(--ink); color:var(--parchment); font-family:'Crimson Pro',Georgia,serif; overflow:hidden; }
+
+/* SPLASH */
+#splash {
+  position:fixed; inset:0; z-index:100; background:var(--ink);
+  display:flex; flex-direction:column; align-items:center; justify-content:center;
+  transition:opacity 1s ease, visibility 1s ease;
+}
+#splash.gone { opacity:0; visibility:hidden; pointer-events:none; }
+.splash-title {
+  font-family:'Cinzel',serif; font-size:clamp(2rem,6vw,4.8rem); font-weight:700;
+  color:var(--gold-light); letter-spacing:0.08em; text-align:center; line-height:1.15;
+  text-shadow:0 0 80px rgba(232,184,75,0.35); animation:fadeUp 1.2s ease both;
+}
+.splash-sub {
+  font-family:'Crimson Pro',serif; font-style:italic;
+  font-size:clamp(0.95rem,2.5vw,1.35rem); color:var(--muted);
+  margin-top:1rem; letter-spacing:0.04em; animation:fadeUp 1.2s 0.3s ease both;
+}
+.splash-line {
+  width:140px; height:1px; background:linear-gradient(90deg,transparent,var(--gold),transparent);
+  margin:2rem auto; animation:fadeUp 1.2s 0.5s ease both;
+}
+.splash-facts {
+  display:flex; gap:40px; margin-bottom:2.2rem;
+  animation:fadeUp 1.2s 0.6s ease both;
+}
+.fact { text-align:center; }
+.fact-num { font-family:'Cinzel',serif; font-size:1.6rem; font-weight:600; color:var(--gold); display:block; }
+.fact-lbl { font-size:0.8rem; color:var(--muted); letter-spacing:0.06em; }
+.splash-btn {
+  font-family:'Cinzel',serif; font-size:0.88rem; letter-spacing:0.2em;
+  color:var(--gold-light); border:1px solid var(--gold); background:transparent;
+  padding:0.8rem 2.8rem; cursor:pointer; transition:all 0.25s;
+  animation:fadeUp 1.2s 0.8s ease both;
+}
+.splash-btn:hover { background:var(--glow); box-shadow:0 0 28px rgba(201,146,42,0.25); color:var(--gold-pale); }
+@keyframes fadeUp { from{opacity:0;transform:translateY(20px)} to{opacity:1;transform:translateY(0)} }
+
+/* APP */
+#app { position:fixed; inset:0; opacity:0; transition:opacity 0.8s ease; }
+#app.visible { opacity:1; }
+
+canvas#tree { display:block; width:100%; height:100%; cursor:grab; }
+canvas#tree.dragging { cursor:grabbing; }
+
+/* TOP BAR */
+#topbar {
+  position:fixed; top:0; left:0; right:0; height:64px;
+  background:linear-gradient(180deg,rgba(13,11,8,0.97) 0%,rgba(13,11,8,0) 100%);
+  display:flex; align-items:center; justify-content:space-between;
+  padding:0 28px; pointer-events:none; z-index:10;
+}
+.topbar-brand { font-family:'Cinzel',serif; font-size:1.05rem; font-weight:700; color:var(--gold); letter-spacing:0.25em; }
+.topbar-brand span { font-size:0.6rem; display:block; letter-spacing:0.18em; color:var(--muted); font-weight:400; margin-top:1px; }
+#topbar-era {
+  font-family:'Cinzel',serif; font-size:0.72rem; font-weight:600; letter-spacing:0.18em;
+  color:var(--gold); text-transform:uppercase; text-align:center;
+  text-shadow:0 0 20px rgba(201,146,42,0.4);
+}
+#topbar-era small { display:block; font-family:'Crimson Pro',serif; font-weight:400; font-style:italic; letter-spacing:0.05em; color:var(--muted); font-size:0.75rem; margin-top:1px; }
+.topbar-stats { font-family:'Crimson Pro',serif; font-size:0.82rem; color:var(--muted); text-align:right; letter-spacing:0.04em; }
+.topbar-stats strong { color:var(--gold-light); font-weight:400; }
+
+/* CONTROLS */
+#controls {
+  position:fixed; bottom:22px; left:50%; transform:translateX(-50%);
+  display:flex; gap:8px; z-index:10; flex-wrap:wrap; justify-content:center;
+}
+.btn {
+  font-family:'Cinzel',serif; font-size:0.68rem; letter-spacing:0.14em;
+  color:var(--gold-light); border:1px solid rgba(201,146,42,0.35);
+  background:rgba(13,11,8,0.88); padding:7px 16px; cursor:pointer;
+  transition:all 0.2s; white-space:nowrap;
+}
+.btn:hover { background:var(--glow); border-color:var(--gold); color:var(--gold-pale); box-shadow:0 0 14px rgba(201,146,42,0.2); }
+.btn:active { transform:scale(0.97); }
+
+/* TOOLTIP */
+#tooltip {
+  position:fixed; pointer-events:none; display:none; z-index:20; max-width:260px;
+}
+.tip-inner {
+  background:rgba(13,11,8,0.96); border:1px solid rgba(201,146,42,0.3);
+  padding:14px 18px; box-shadow:0 10px 40px rgba(0,0,0,0.7),0 0 24px rgba(201,146,42,0.06);
+}
+.tip-name { font-family:'Cinzel',serif; font-size:1rem; font-weight:600; color:var(--gold-light); margin-bottom:3px; }
+.tip-era { font-family:'Crimson Pro',serif; font-style:italic; font-size:0.85rem; color:var(--muted); margin-bottom:8px; }
+.tip-region { font-family:'Crimson Pro',serif; font-size:0.8rem; color:rgba(201,146,42,0.7); margin-bottom:6px; }
+.tip-detail { font-family:'Crimson Pro',serif; font-size:0.82rem; color:rgba(242,232,208,0.7); line-height:1.55; }
+.tip-gen { margin-top:8px; font-family:'Cinzel',serif; font-size:0.62rem; letter-spacing:0.14em; color:rgba(201,146,42,0.45); border-top:1px solid rgba(201,146,42,0.12); padding-top:6px; }
+
+/* LEGEND */
+#legend {
+  position:fixed; bottom:70px; left:20px; z-index:10; pointer-events:none;
+  background:rgba(13,11,8,0.7); border:1px solid rgba(201,146,42,0.12);
+  padding:10px 14px;
+}
+.legend-title { font-family:'Cinzel',serif; font-size:0.58rem; letter-spacing:0.2em; color:var(--muted); margin-bottom:7px; }
+.legend-item { display:flex; align-items:center; gap:7px; margin-bottom:3px; }
+.legend-dot { width:7px; height:7px; border-radius:50%; flex-shrink:0; }
+.legend-text { font-family:'Crimson Pro',serif; font-size:0.7rem; color:rgba(122,106,80,0.75); }
+
+/* DEPTH METER */
+#depth-meter {
+  position:fixed; right:18px; top:80px; bottom:76px; width:2px;
+  background:rgba(201,146,42,0.08); z-index:10; pointer-events:none;
+}
+#depth-thumb {
+  position:absolute; left:-4px; width:10px; height:2px;
+  background:var(--gold); box-shadow:0 0 10px rgba(201,146,42,0.7);
+  transition:top 0.3s ease;
+}
+#depth-labels {
+  position:fixed; right:32px; top:80px; bottom:76px;
+  display:flex; flex-direction:column; justify-content:space-between;
+  pointer-events:none; z-index:10;
+}
+.depth-lbl { font-family:'Crimson Pro',serif; font-size:0.62rem; color:rgba(122,106,80,0.4); text-align:right; white-space:nowrap; }
+
+/* ZOOM */
+#zoom-ind { position:fixed; bottom:68px; right:36px; font-family:'Crimson Pro',serif; font-size:0.7rem; color:rgba(122,106,80,0.4); pointer-events:none; z-index:10; }
+
+/* HINT */
+#hint {
+  position:fixed; bottom:66px; left:50%; transform:translateX(-50%);
+  font-family:'Crimson Pro',serif; font-style:italic; font-size:0.8rem;
+  color:rgba(201,146,42,0.4); pointer-events:none; z-index:10;
+  animation:pulse 3s ease-in-out infinite; transition:opacity 1s; white-space:nowrap;
+}
+#hint.gone { opacity:0; }
+@keyframes pulse { 0%,100%{opacity:0.4} 50%{opacity:0.85} }
+
+/* NAMED COUNT BADGE */
+#named-badge {
+  position:fixed; top:72px; left:50%; transform:translateX(-50%);
+  font-family:'Cinzel',serif; font-size:0.62rem; letter-spacing:0.15em;
+  color:rgba(245,228,176,0.5); pointer-events:none; z-index:10; white-space:nowrap;
+  transition:opacity 0.5s;
+}
+</style>
+</head>
+<body>
+
+<div id="splash">
+  <div class="splash-title">HUMANITAS</div>
+  <div class="splash-sub">The Complete Human Family Tree</div>
+  <div class="splash-line"></div>
+  <div class="splash-facts">
+    <div class="fact"><span class="fact-num">8B</span><span class="fact-lbl">Living Today</span></div>
+    <div class="fact"><span class="fact-num">40</span><span class="fact-lbl">Generations</span></div>
+    <div class="fact"><span class="fact-num">300K</span><span class="fact-lbl">Years of History</span></div>
+    <div class="fact"><span class="fact-num">14+</span><span class="fact-lbl">Named Ancestors</span></div>
+  </div>
+  <button class="splash-btn" onclick="enterTree()">ENTER THE TREE ↓</button>
+</div>
+
+<div id="app">
+  <canvas id="tree"></canvas>
+
+  <div id="topbar">
+    <div class="topbar-brand">HUMANITAS<span>Family Tree of Humanity</span></div>
+    <div id="topbar-era">Loading…<small></small></div>
+    <div class="topbar-stats">Gen <strong id="s-gen">—</strong> · <strong id="s-vis">—</strong> nodes · <strong id="s-pop">—</strong> people</div>
+  </div>
+
+  <div id="named-badge">● GOLD NODES ARE NAMED HISTORICAL ANCESTORS — HOVER TO DISCOVER</div>
+
+  <div id="controls">
+    <button class="btn" onclick="doReset()">↖ ORIGIN</button>
+    <button class="btn" onclick="doZoomIn()">+ ZOOM IN</button>
+    <button class="btn" onclick="doZoomOut()">− ZOOM OUT</button>
+    <button class="btn" onclick="doJump(13)">⚔ BRONZE AGE</button>
+    <button class="btn" onclick="doJump(20)">⚜ MEDIEVAL</button>
+    <button class="btn" onclick="doJump(39)">◉ PRESENT DAY</button>
+  </div>
+
+  <div id="tooltip">
+    <div class="tip-inner">
+      <div class="tip-name" id="t-name"></div>
+      <div class="tip-era" id="t-era"></div>
+      <div class="tip-region" id="t-region"></div>
+      <div class="tip-detail" id="t-detail"></div>
+      <div class="tip-gen" id="t-gen"></div>
+    </div>
+  </div>
+
+  <div id="legend"></div>
+  <div id="depth-meter"><div id="depth-thumb"></div></div>
+  <div id="depth-labels">
+    <div class="depth-lbl">200,000 BC</div>
+    <div class="depth-lbl">70,000 BC</div>
+    <div class="depth-lbl">10,000 BC</div>
+    <div class="depth-lbl">500 AD</div>
+    <div class="depth-lbl">Today</div>
+  </div>
+  <div id="zoom-ind"></div>
+  <div id="hint">scroll to zoom · drag to explore · hover gold nodes to learn their stories</div>
+</div>
+
+<script>
+// ═══════════════════════════════════════════════
+//  NAMED ANCESTORS DATABASE
+// ═══════════════════════════════════════════════
+const NAMED = {
+  '0:0': {
+    name: 'Mitochondrial Eve', era: 'c. 150,000–200,000 BC',
+    region: 'East Africa (Great Rift Valley)',
+    detail: 'The matrilineal most recent common ancestor of every human alive today. She was not the only woman alive — just the one from whom an unbroken female line descends to all 8 billion of us. She likely lived among a community of hunter-gatherers near the Great Rift Valley.',
+    r: 10, special: true
+  },
+  '1:0': {
+    name: 'L0 Lineage Mother', era: 'c. 150,000 BC',
+    region: 'Southern Africa',
+    detail: 'Ancestral mother of haplogroup L0 — the earliest diverging human lineage. Her descendants include the Khoisan (San) people of southern Africa, who preserve the oldest genetic and cultural traditions on Earth, including the earliest known click languages.',
+  },
+  '1:1': {
+    name: 'L1–6 Lineage Mother', era: 'c. 130,000 BC',
+    region: 'East & Central Africa',
+    detail: 'Mother of haplogroups L1 through L6. Her vast family tree encompasses the overwhelming majority of humanity. From her lineage would come every person who ever left Africa, and billions who remained.',
+  },
+  '2:0': {
+    name: 'Khoisan Ancestress', era: 'c. 100,000 BC',
+    region: 'Southern Africa',
+    detail: 'Progenitor of one of the world\'s oldest surviving peoples. Her descendants developed the oldest known musical traditions, rock art, and spiritual practices. The San people\'s mitochondrial DNA diverges from all other humans roughly 100,000–150,000 years ago.',
+  },
+  '2:1': {
+    name: 'Central African Mother', era: 'c. 90,000 BC',
+    region: 'Congo Basin',
+    detail: 'Her lineage diversified across the Congo Basin rainforest and West Africa, becoming the genetic foundation of sub-Saharan Africa\'s extraordinary diversity — more genetic variation exists within Africa than in the rest of the world combined.',
+  },
+  '2:2': {
+    name: 'L3 Ancestress', era: 'c. 70,000 BC',
+    region: 'East Africa',
+    detail: 'The most consequential woman in history outside of Eve herself. She is the mother of haplogroup L3 — the only African haplogroup whose descendants colonised every continent outside Africa. Every non-African person alive descends from her.',
+  },
+  '3:0': {
+    name: 'The Coastal Walker', era: 'c. 70,000 BC',
+    region: 'Horn of Africa',
+    detail: 'One of the first humans to walk out of Africa along the southern coastal route. She followed the Indian Ocean shoreline through what is now Djibouti, hugging the coast for shellfish and fresh water as her small band ventured into Arabia.',
+  },
+  '3:1': {
+    name: 'Arabian Crossing Mother', era: 'c. 65,000 BC',
+    region: 'Arabian Peninsula',
+    detail: 'During a brief humid period, she crossed the Bab-el-Mandeb strait where the Red Sea narrowed to just 12 kilometres. Her small group — perhaps 150 people — became the ancestral population of nearly all non-Africans. The bottleneck is visible in our DNA.',
+  },
+  '3:2': {
+    name: 'Nile Valley Elder', era: 'c. 60,000 BC',
+    region: 'Nile Valley, Egypt',
+    detail: 'While some crossed to Arabia, her family remained in the Nile Valley, ancestors of many North African lineages. She lived during a green Sahara, when lakes and rivers dotted what is now empty desert.',
+  },
+  '4:0': {
+    name: 'South Asian Pioneer', era: 'c. 60,000 BC',
+    region: 'Indian Subcontinent',
+    detail: 'Carrier of haplogroup M, she reached the Indian subcontinent by following the coastline. Her descendants were among the first humans in South Asia and eventually spread to every corner of the Indian Ocean world. A modern descendant lives roughly every 2 seconds in India today.',
+  },
+  '4:1': {
+    name: 'Levantine Forager', era: 'c. 55,000 BC',
+    region: 'Fertile Crescent',
+    detail: 'She hunted gazelle and gathered wild figs in the land between rivers. Her descendants would, 45,000 years later, invent agriculture in this same region — unknowingly reshaping all of human civilisation.',
+  },
+  '4:2': {
+    name: 'Eurasian Ancestress', era: 'c. 55,000 BC',
+    region: 'Central Asia',
+    detail: 'Mother of haplogroup N — the founding lineage of almost all Northern Eurasians. The vast majority of Europeans, East Asians, and Native Americans trace their mitochondrial line through her.',
+  },
+  '5:0': {
+    name: 'Denisovan Neighbour', era: 'c. 50,000 BC',
+    region: 'Altai Mountains, Siberia',
+    detail: 'She lived alongside Denisovans — a separate human species discovered only in 2010 from a single finger bone. Her community interbred with Denisovans, and today ~3–5% of Melanesian DNA is Denisovan. She knew people who were not fully Homo sapiens.',
+  },
+  '5:1': {
+    name: 'The First Sailor', era: 'c. 50,000 BC',
+    region: 'Southeast Asia / Sundaland',
+    detail: 'Her people accomplished the greatest maritime feat of the Paleolithic: crossing open ocean in simple watercraft to reach Australia and New Guinea. Even at low sea levels, a water crossing of at least 70km was required. She was among the world\'s first sailors.',
+  },
+  '5:2': {
+    name: 'Zagros Mountain Mother', era: 'c. 48,000 BC',
+    region: 'Zagros Mountains, Iran',
+    detail: 'She hunted wild goats in the mountain passes and sheltered in painted caves. Her descendants would, millennia later, be the first to domesticate goats — the animal that helped feed the ancient world.',
+  },
+  '6:0': {
+    name: 'First Australian', era: 'c. 47,000 BC',
+    region: 'Northern Australia',
+    detail: 'The first human to set foot on the Australian continent. Her descendants became Aboriginal Australians — keepers of the oldest continuous culture on Earth, developing sophisticated astronomy, land management, and oral traditions over 65,000 years.',
+  },
+  '6:1': {
+    name: 'Cro-Magnon Ancestress', era: 'c. 43,000 BC',
+    region: 'Western Europe',
+    detail: 'Her family entered Europe through the Balkans, bringing the Aurignacian culture: flutes made of vulture bone, carved Venus figurines, and the first narrative art. They coexisted with Neanderthals for thousands of years. She may have known both species.',
+  },
+  '6:2': {
+    name: 'Siberian Pioneer', era: 'c. 45,000 BC',
+    region: 'Western Siberia',
+    detail: 'Her lineage pushed east across the Siberian mammoth steppe — one of the most demanding environments humans had ever faced. Adapting to -40°C winters, her descendants would eventually cross into the Americas and become the first Native Americans.',
+  },
+  '7:0': {
+    name: "Hohle Fels Cave Dweller", era: 'c. 38,000 BC',
+    region: 'Swabian Jura, Germany',
+    detail: 'Her community carved the oldest known figurative sculpture: the Lion Man of Hohlenstein-Stadel, a 40cm ivory figure of a human with a lion\'s head. They also made the world\'s oldest flutes from vulture and mammoth bone. Art was born in her valley.',
+  },
+  '7:1': {
+    name: "Mal'ta Child's Ancestor", era: 'c. 36,000 BC',
+    region: 'Lake Baikal, Siberia',
+    detail: 'Her population is the ancestral ghost lineage that gave rise to both modern Native Americans and — surprisingly — some populations in Western Europe and South Asia. Ancient DNA revealed this surprising bridge across continents, discovered only in 2013.',
+  },
+  '7:2': {
+    name: 'Tianyuan Cave Woman', era: 'c. 38,000 BC',
+    region: 'Zhoukoudian, China',
+    detail: 'One of the oldest known modern humans in East Asia. Her remains were found in Tianyuan Cave near Beijing in 2003. Ancient DNA analysis showed she was related to ancestors of many living East and Southeast Asians.',
+  },
+  '8:0': {
+    name: 'Gravettian Elder', era: 'c. 30,000 BC',
+    region: 'Central Europe',
+    detail: 'The Gravettian culture dominated Ice Age Europe. Her people built elaborate mammoth-bone huts on the frozen plains, crafted the Venus of Willendorf, and developed the first known woven textiles. They hunted in organised groups, possibly wearing woven plant-fibre clothing.',
+  },
+  '8:1': {
+    name: 'Beringian Mother', era: 'c. 26,000 BC',
+    region: 'Beringia (Alaska-Siberia land bridge)',
+    detail: 'Her family crossed from Siberia onto the vast Beringian land bridge — an area the size of Australia — that existed when sea levels were 120m lower. They were trapped there for thousands of years by glaciers. Her descendants became the first Americans.',
+  },
+  '8:2': {
+    name: 'Solutrean Craftswoman', era: 'c. 22,000 BC',
+    region: 'Iberian Peninsula',
+    detail: 'During the peak of the last Ice Age, her people created the most exquisitely worked stone tools ever made: willow-leaf blades thinner than modern glass. She lived through the coldest period in 100,000 years, when Britain was permafrost and the Sahara was dunes.',
+  },
+  '9:0': {
+    name: 'First American', era: 'c. 16,000 BC',
+    region: 'Pacific Coast of North America',
+    detail: 'As the glaciers retreated, her family moved south along the Pacific coast — possibly by boat — becoming the first people to enter the Americas. Within just 2,000 years, her descendants had walked to the tip of South America. The fastest colonisation of a continent in history.',
+  },
+  '9:1': {
+    name: 'Lascaux Painter', era: 'c. 17,000 BC',
+    region: 'Dordogne, France',
+    detail: 'Her people painted the Lascaux cave complex: 600 paintings of horses, bison, deer, and bulls in breathtaking naturalism. The cave was sealed 15,000 years ago and rediscovered by teenagers in 1940. Her art waited in darkness, perfectly preserved, for all of us.',
+  },
+  '9:2': {
+    name: 'Jōmon Pottery Maker', era: 'c. 14,000 BC',
+    region: 'Japanese Archipelago',
+    detail: 'Her people made the world\'s oldest known pottery — fired clay vessels used to cook shellfish and store food. The Jōmon culture thrived for over 14,000 years, longer than any other human culture, with a rich tradition of cord-marked ceramics and clay figurines.',
+  },
+  '10:0': {
+    name: 'Natufian Reaper', era: 'c. 12,500 BC',
+    region: 'Levant (modern Israel/Jordan)',
+    detail: 'She harvested wild emmer wheat with a flint-bladed sickle — the first steps toward farming. The Natufians built permanent stone houses and buried their dead with grave goods. She lived in the world\'s first village without yet being a farmer.',
+  },
+  '10:1': {
+    name: 'Mesolithic Briton', era: 'c. 10,000 BC',
+    region: 'Britain (Doggerland coast)',
+    detail: 'She hunted elk across Doggerland — a vast plain connecting Britain to Europe, now submerged under the North Sea. Ancient DNA shows she had dark skin, blue eyes, and dark hair. The "native Briton" looked nothing like modern British people.',
+  },
+  '10:2': {
+    name: 'Göbekli Tepe Builder', era: 'c. 10,000 BC',
+    region: 'Southeastern Anatolia',
+    detail: 'Her community quarried and erected 5.5-metre limestone pillars carved with foxes, scorpions, and vultures — the world\'s oldest temple, built 6,000 years before Stonehenge. Staggeringly, they built it before inventing farming. Religion may predate agriculture.',
+  },
+  '11:0': {
+    name: 'The First Farmer', era: 'c. 9,500 BC',
+    region: 'Karaçadağ, Anatolia',
+    detail: 'She planted the first domesticated einkorn wheat in the foothills of the Karaçadağ mountains. A single act — saving the plumpest seeds and replanting them — began an agricultural revolution that transformed Earth\'s landscapes and fed billions. She changed everything.',
+  },
+  '11:1': {
+    name: 'Yangtze Rice Grower', era: 'c. 7,000 BC',
+    region: 'Yangtze River Delta, China',
+    detail: 'She independently invented agriculture in East Asia, domesticating rice in the wetlands of the Yangtze Delta. Today, rice feeds half the human population. The world\'s most important crop was born in her muddy fields.',
+  },
+  '11:2': {
+    name: 'Çatalhöyük Elder', era: 'c. 7,500 BC',
+    region: 'Central Anatolia',
+    detail: 'She lived in Çatalhöyük, one of the world\'s first proto-cities with 8,000–10,000 inhabitants. There were no streets — people walked on rooftops and entered homes through ceiling holes. Skulls of ancestors were plastered and kept beneath sleeping platforms.',
+  },
+  '12:0': {
+    name: 'Eridu Temple Keeper', era: 'c. 5,500 BC',
+    region: 'Mesopotamia (southern Iraq)',
+    detail: 'She tended the temple of Eridu — possibly the world\'s first city, built on the marshes of southern Mesopotamia. The Sumerians believed Eridu was the first city created by the gods. Seventeen temples were built on the same sacred spot over 3,000 years.',
+  },
+  '12:1': {
+    name: 'Indus Craftswoman', era: 'c. 5,000 BC',
+    region: 'Indus Valley (Pakistan/India)',
+    detail: 'Her descendants built Mohenjo-daro and Harappa — Bronze Age cities with sophisticated sewage systems, standardised brick sizes, and indoor plumbing 4,000 years before Rome. The Indus Script they used has never been deciphered.',
+  },
+  '12:2': {
+    name: 'Nile Delta Farmer', era: 'c. 4,500 BC',
+    region: 'Egypt',
+    detail: 'She farmed the black soil of the Nile floodplain, fattened by annual floods. Her descendants would build the Sphinx, the pyramids, and invent the papyrus scroll. The Nile\'s predictable floods made Egypt the most stable civilisation in history — 3,000 years of continuous culture.',
+  },
+  '13:0': {
+    name: 'Akkadian Queen\'s Kin', era: 'c. 2,300 BC',
+    region: 'Mesopotamia',
+    detail: 'She lived under the world\'s first empire — the Akkadian Empire of Sargon the Great. She may have heard the poetry of Enheduanna, daughter of Sargon and the world\'s first named author in history, whose hymns to the moon goddess survive to this day.',
+  },
+  '13:1': {
+    name: 'Yamnaya Rider', era: 'c. 3,000 BC',
+    region: 'Pontic-Caspian Steppe',
+    detail: 'A Yamnaya pastoralist whose people transformed Eurasia. They domesticated the horse, invented the wheeled wagon, and spread across Europe and South Asia in a migration that reshaped the continent\'s genetics. Modern Europeans are roughly 1/3 Yamnaya by ancestry. She was one of the most consequential populations in history.',
+  },
+  '13:2': {
+    name: 'Minoan Sea Merchant', era: 'c. 1,900 BC',
+    region: 'Crete',
+    detail: 'She traded copper, tin, saffron, and wine across the Aegean in Europe\'s first palace civilisation. The Minoans had indoor plumbing, elaborate frescoes of bull-leaping and dolphins, and a writing system (Linear A) we still cannot read. Their civilisation ended in a volcanic catastrophe.',
+  },
+  '14:0': {
+    name: 'Zhou Dynasty Elder', era: 'c. 1,000 BC',
+    region: 'Yellow River Valley, China',
+    detail: 'She lived through China\'s philosophical golden age: the time of Confucius, Laozi, Sun Tzu, and Mencius. The Zhou Dynasty\'s "Hundred Schools of Thought" shaped Chinese culture for 3,000 years. She may have heard the earliest versions of ideas that still govern a quarter of humanity.',
+  },
+  '14:1': {
+    name: 'Celtic Ironsmith', era: 'c. 800 BC',
+    region: 'Hallstatt, Central Europe',
+    detail: 'Her people mastered iron-smelting, which was harder to work but stronger than bronze. The Celts spread across Europe, carrying La Tène art, Celtic languages (ancestors of Welsh, Irish, Gaelic), and a warrior culture. She was part of a revolution that changed who ruled Europe.',
+  },
+  '14:2': {
+    name: 'Phoenician Scribe', era: 'c. 900 BC',
+    region: 'Tyre, Levant',
+    detail: 'Her people gave the world the alphabet. The Phoenician script, with 22 consonants and no vowels, was adapted by the Greeks, then Romans, then every Western language. Every letter in this sentence descends from the marks her people scratched in clay. She invented how you read.',
+  },
+};
+
+// ═══════════════════════════════════════════════
+//  ERA COLOUR BANDS
+// ═══════════════════════════════════════════════
+const ERAS = [
+  { gen:0,  color:'#ff9a3c', name:'Mitochondrial Eve',   label:'~200,000 BC' },
+  { gen:1,  color:'#f5814a', name:'Earliest Homo Sapiens', label:'~150,000 BC' },
+  { gen:3,  color:'#e86a2e', name:'Out of Africa',        label:'~70,000 BC'  },
+  { gen:5,  color:'#c9922a', name:'Peopling the World',   label:'~50,000 BC'  },
+  { gen:7,  color:'#b8a020', name:'Upper Paleolithic',    label:'~35,000 BC'  },
+  { gen:9,  color:'#8ab520', name:'Late Ice Age',         label:'~18,000 BC'  },
+  { gen:11, color:'#3db542', name:'Neolithic Revolution', label:'~9,000 BC'   },
+  { gen:13, color:'#2ab5a0', name:'Bronze Age',           label:'~3,000 BC'   },
+  { gen:15, color:'#2090c8', name:'Iron Age & Antiquity', label:'~800 BC'     },
+  { gen:18, color:'#4070e0', name:'Classical Antiquity',  label:'~300 BC'     },
+  { gen:21, color:'#5060d8', name:'Late Antiquity',       label:'~400 AD'     },
+  { gen:24, color:'#6048c8', name:'Early Medieval',       label:'~800 AD'     },
+  { gen:27, color:'#8040b8', name:'High Medieval',        label:'~1100 AD'    },
+  { gen:30, color:'#a040a0', name:'Renaissance',          label:'~1450 AD'    },
+  { gen:33, color:'#c04080', name:'Early Modern',         label:'~1700 AD'    },
+  { gen:36, color:'#d04060', name:'Industrial Age',       label:'~1850 AD'    },
+  { gen:38, color:'#e04050', name:'20th Century',         label:'~1950 AD'    },
+  { gen:39, color:'#f04040', name:'Present Day',          label:'2025 AD'     },
+];
+
+function eraFor(g) {
+  let e = ERAS[0];
+  for (const x of ERAS) { if (g >= x.gen) e = x; else break; }
+  return e;
+}
+
+// ═══════════════════════════════════════════════
+//  GENERATION POPULATION SIZES
+// ═══════════════════════════════════════════════
+const GEN_SIZES = [
+  1,2,4,8,16,32,64,128,256,512,
+  1024,3000,10000,50000,200000,800000,3000000,
+  10000000,30000000,70000000,150000000,
+  250000000,350000000,450000000,500000000,
+  520000000,540000000,560000000,580000000,600000000,
+  650000000,750000000,900000000,1100000000,1400000000,
+  1800000000,2500000000,3700000000,5500000000,8000000000
+];
+const TOTAL_GENS = GEN_SIZES.length;
+
+// ═══════════════════════════════════════════════
+//  PRNG
+// ═══════════════════════════════════════════════
+function rng(seed) {
+  let s = (seed ^ 0xdeadbeef) >>> 0;
+  s = Math.imul(s ^ (s>>>16), 0x45d9f3b) >>> 0;
+  s = Math.imul(s ^ (s>>>16), 0x45d9f3b) >>> 0;
+  return ((s ^ (s>>>16)) >>> 0) / 0xffffffff;
+}
+
+// ═══════════════════════════════════════════════
+//  STATE
+// ═══════════════════════════════════════════════
+const cv = document.getElementById('tree');
+const ctx = cv.getContext('2d');
+let W, H, sc = 1, tx = 0, ty = 0;
+let dragging = false, lastMX = 0, lastMY = 0;
+const GEN_H = 120;
+const TREE_W = 16000;
+let animId;
+
+function resize() {
+  const dpr = window.devicePixelRatio || 1;
+  W = cv.clientWidth; H = cv.clientHeight;
+  cv.width = W * dpr; cv.height = H * dpr;
+  cv.style.width = W+'px'; cv.style.height = H+'px';
+  ctx.scale(dpr, dpr);
+  draw();
+}
+
+function w2s(wx,wy) { return [wx*sc+tx+W*0.5, wy*sc+ty+H*0.5]; }
+function s2w(sx,sy) { return [(sx-W*0.5-tx)/sc, (sy-H*0.5-ty)/sc]; }
+
+function visGens() {
+  const [,wy0]=s2w(0,-80), [,wy1]=s2w(0,H+80);
+  return [Math.max(0,Math.floor(wy0/GEN_H)-1), Math.min(TOTAL_GENS-1,Math.ceil(wy1/GEN_H)+1)];
+}
+function visX() {
+  const [wx0]=s2w(-80,0), [wx1]=s2w(W+80,0);
+  return [wx0,wx1];
+}
+
+function nx(gen,idx) {
+  const n = GEN_SIZES[gen];
+  const base = (idx/(n+1)-0.5)*TREE_W;
+  const j = (rng(gen*998244353+idx*1000000007)-0.5)*(TREE_W/(n+1))*0.55;
+  return base+j;
+}
+function ny(gen) { return gen*GEN_H; }
+
+function parentOf(gen,idx) {
+  if(gen===0) return null;
+  const pc = GEN_SIZES[gen-1], cc = GEN_SIZES[gen];
+  const base = Math.round(idx*pc/cc);
+  const d = Math.floor((rng(gen*7919+idx*6271)-0.5)*Math.min(5,pc*0.01+2));
+  return Math.max(0,Math.min(pc-1,base+d));
+}
+
+// ═══════════════════════════════════════════════
+//  RENDER
+// ═══════════════════════════════════════════════
+let tick = 0;
+function draw() {
+  cancelAnimationFrame(animId);
+  animId = requestAnimationFrame(render);
+}
+
+function render() {
+  tick++;
+  ctx.clearRect(0,0,W,H);
+  drawBg();
+
+  const [g0,g1] = visGens();
+  const [xmin,xmax] = visX();
+  const nodeR = Math.max(1.5, Math.min(8, 4*Math.sqrt(sc)));
+  const maxPerGen = Math.max(80, Math.floor(W/Math.max(2.5, nodeR*2.2)));
+  let vis = 0;
+
+  for (let gen=g1; gen>=g0; gen--) {
+    const count = GEN_SIZES[gen];
+    const col = eraFor(gen).color;
+    const iy = ny(gen);
+
+    const ixMin = Math.max(0, Math.floor((xmin/TREE_W+0.5)*count)-3);
+    const ixMax = Math.min(count-1, Math.ceil((xmax/TREE_W+0.5)*count)+3);
+    const span = ixMax-ixMin;
+    const step = Math.max(1, Math.ceil(span/maxPerGen));
+
+    // Named nodes — ensure they always render
+    const namedInGen = Object.keys(NAMED)
+      .filter(k=>parseInt(k)<gen+1 && k.startsWith(gen+':'))
+      .map(k=>parseInt(k.split(':')[1]));
+
+    const indices = new Set();
+    for (let idx=ixMin; idx<=ixMax; idx+=step) indices.add(idx);
+    namedInGen.forEach(i=>indices.add(i));
+
+    for (const idx of indices) {
+      const x = nx(gen,idx);
+      if(x<xmin-100||x>xmax+100) continue;
+      const [sx,sy] = w2s(x,iy);
+      if(sx<-20||sx>W+20||sy<-20||sy>H+20) continue;
+      vis++;
+
+      // Edge to parent
+      if(gen>0 && sc>0.08) {
+        const pid = parentOf(gen,idx);
+        const [px,py] = w2s(nx(gen-1,pid), ny(gen-1));
+        ctx.beginPath();
+        ctx.moveTo(sx,sy);
+        const my = (sy+py)*0.5;
+        ctx.bezierCurveTo(sx,my-10,px,my+10,px,py);
+        ctx.strokeStyle = col+'1a';
+        ctx.lineWidth = Math.max(0.25, sc*0.6);
+        ctx.stroke();
+      }
+
+      const key=`${gen}:${idx}`;
+      const named = NAMED[key];
+      const r = named ? Math.max(5,(named.r||7)*Math.min(1,sc*0.5+0.5)) : nodeR;
+
+      if(named && sc>0.2) {
+        // Outer glow
+        const gr = ctx.createRadialGradient(sx,sy,r*0.5,sx,sy,r*4.5);
+        gr.addColorStop(0,col+'55');
+        gr.addColorStop(1,col+'00');
+        ctx.beginPath(); ctx.arc(sx,sy,r*4.5,0,Math.PI*2);
+        ctx.fillStyle=gr; ctx.fill();
+      }
+
+      ctx.beginPath(); ctx.arc(sx,sy,r,0,Math.PI*2);
+      ctx.fillStyle = named ? col : col+'bb';
+      ctx.fill();
+
+      if(named && sc>0.3) {
+        ctx.beginPath(); ctx.arc(sx,sy,r+2,0,Math.PI*2);
+        ctx.strokeStyle='#f5e4b088'; ctx.lineWidth=1.5; ctx.stroke();
+      }
+      if(named?.special && sc>0.2) {
+        ctx.beginPath(); ctx.arc(sx,sy,r+5,0,Math.PI*2);
+        ctx.strokeStyle='#f5e4b044'; ctx.lineWidth=1; ctx.stroke();
+      }
+
+      // Label
+      if(named && sc>0.45) {
+        const fs = Math.min(14,Math.max(8,11*Math.min(sc,1.5)*0.65));
+        ctx.textAlign='center'; ctx.textBaseline='top';
+        ctx.shadowColor='rgba(0,0,0,0.95)'; ctx.shadowBlur=8;
+        ctx.font=`600 ${fs}px 'Cinzel',serif`;
+        ctx.fillStyle='#f5e4b0';
+        ctx.fillText(named.name,sx,sy+r+4);
+        if(sc>1.0 && named.era) {
+          ctx.font=`italic ${fs*0.78}px 'Crimson Pro',serif`;
+          ctx.fillStyle='#c9922a';
+          ctx.fillText(named.era,sx,sy+r+4+fs+3);
+        }
+        ctx.shadowBlur=0;
+      }
+    }
+  }
+
+  // Orbiting particles on named nodes
+  if(sc>0.35) drawOrbits(g0,g1);
+
+  updateHUD(g0,g1,vis);
+}
+
+function drawBg() {
+  ctx.fillStyle='#0d0b08'; ctx.fillRect(0,0,W,H);
+  // Warm gradient
+  const gr = ctx.createRadialGradient(W*0.5,H*0.4,0,W*0.5,H*0.4,W*0.75);
+  gr.addColorStop(0,'rgba(40,20,5,0.5)'); gr.addColorStop(1,'rgba(0,0,0,0)');
+  ctx.fillStyle=gr; ctx.fillRect(0,0,W,H);
+  // Stars
+  for(let i=0;i<250;i++){
+    const sx=rng(i*3)*W, sy=rng(i*3+1)*H, sr=rng(i*3+2)*1.3+0.2;
+    const a=0.08+rng(i*3+2)*0.3;
+    ctx.beginPath(); ctx.arc(sx,sy,sr,0,Math.PI*2);
+    ctx.fillStyle=`rgba(255,240,210,${a})`; ctx.fill();
+  }
+}
+
+function drawOrbits(g0,g1) {
+  const t = tick/90;
+  for(const [key,nd] of Object.entries(NAMED)) {
+    const [gs,is]=key.split(':').map(Number);
+    if(gs<g0||gs>g1) continue;
+    const [sx,sy]=w2s(nx(gs,is),ny(gs));
+    if(sx<-10||sx>W+10||sy<-10||sy>H+10) continue;
+    const r=(nd.r||7)*Math.min(1,sc*0.5+0.5);
+    const dist=r*3.5;
+    for(let k=0;k<3;k++){
+      const a=t*Math.PI*2+k*(Math.PI*2/3);
+      const px=sx+Math.cos(a)*dist, py=sy+Math.sin(a)*dist;
+      ctx.beginPath(); ctx.arc(px,py,1.3,0,Math.PI*2);
+      ctx.fillStyle=`rgba(245,228,176,${0.6+Math.sin(a+tick*0.1)*0.3})`;
+      ctx.fill();
+    }
+  }
+}
+
+function updateHUD(g0,g1,vis) {
+  const mid = Math.round((g0+g1)/2);
+  const era = eraFor(mid);
+  document.getElementById('topbar-era').innerHTML =
+    era.name+'<small>'+era.label+'</small>';
+  document.getElementById('s-gen').textContent=`${g0}–${g1}`;
+  document.getElementById('s-vis').textContent=vis.toLocaleString();
+  const pop=GEN_SIZES[Math.min(g1,TOTAL_GENS-1)];
+  document.getElementById('s-pop').textContent=
+    pop>=1e9?(pop/1e9).toFixed(1)+'B':pop>=1e6?(pop/1e6).toFixed(0)+'M':pop.toLocaleString();
+
+  const mh=window.innerHeight-160;
+  document.getElementById('depth-thumb').style.top=(mid/(TOTAL_GENS-1)*mh)+'px';
+  document.getElementById('zoom-ind').textContent='zoom '+sc.toFixed(2)+'×';
+}
+
+// ═══════════════════════════════════════════════
+//  TOOLTIP
+// ═══════════════════════════════════════════════
+const tip=document.getElementById('tooltip');
+let tipTO;
+function handleTip(e) {
+  clearTimeout(tipTO);
+  const rect=cv.getBoundingClientRect();
+  const ox=e.clientX-rect.left, oy=e.clientY-rect.top;
+  const [g0,g1]=visGens(); const [xmin,xmax]=visX();
+  let best=null, bestD=28;
+
+  for(let gen=g0;gen<=g1;gen++){
+    const count=GEN_SIZES[gen];
+    const ixMin=Math.max(0,Math.floor((xmin/TREE_W+0.5)*count)-3);
+    const ixMax=Math.min(count-1,Math.ceil((xmax/TREE_W+0.5)*count)+3);
+    const step=Math.max(1,Math.ceil((ixMax-ixMin)/3000));
+    for(let idx=ixMin;idx<=ixMax;idx+=step){
+      const [sx,sy]=w2s(nx(gen,idx),ny(gen));
+      const d=Math.hypot(sx-ox,sy-oy);
+      if(d<bestD){bestD=d;best={gen,idx};}
+    }
+    // Check named precisely
+    Object.keys(NAMED).filter(k=>k.startsWith(gen+':')).forEach(k=>{
+      const is=parseInt(k.split(':')[1]);
+      const [sx,sy]=w2s(nx(gen,is),ny(gen));
+      const d=Math.hypot(sx-ox,sy-oy);
+      if(d<32){best={gen,idx:is};bestD=d;}
+    });
+  }
+
+  if(best){
+    const{gen,idx}=best;
+    const nd=NAMED[`${gen}:${idx}`];
+    const era=eraFor(gen);
+    document.getElementById('t-name').textContent=nd?nd.name:`Person #${idx.toLocaleString()}`;
+    document.getElementById('t-era').textContent=nd?nd.era:era.label;
+    document.getElementById('t-region').textContent=nd&&nd.region?'📍 '+nd.region:'';
+    document.getElementById('t-detail').textContent=nd
+      ?nd.detail
+      :`One of ${GEN_SIZES[gen]>=1e9?(GEN_SIZES[gen]/1e9).toFixed(1)+'B':GEN_SIZES[gen]>=1e6?(GEN_SIZES[gen]/1e6).toFixed(0)+'M':GEN_SIZES[gen].toLocaleString()} people living during the ${era.name} era.`;
+    document.getElementById('t-gen').textContent=`GENERATION ${gen} · ${era.name.toUpperCase()}`;
+    const tx2=Math.min(e.clientX+18,window.innerWidth-275);
+    const ty2=Math.min(e.clientY-10,window.innerHeight-200);
+    tip.style.left=tx2+'px'; tip.style.top=ty2+'px'; tip.style.display='block';
+  } else {
+    tipTO=setTimeout(()=>{tip.style.display='none';},80);
+  }
+}
+cv.addEventListener('mousemove',e=>{if(!dragging)handleTip(e);});
+cv.addEventListener('mouseleave',()=>{tip.style.display='none';});
+
+// ═══════════════════════════════════════════════
+//  INPUT
+// ═══════════════════════════════════════════════
+cv.addEventListener('wheel',e=>{
+  e.preventDefault();
+  const f=e.deltaY<0?1.1:0.91;
+  const[wx,wy]=s2w(e.offsetX,e.offsetY);
+  sc=Math.max(0.025,Math.min(30,sc*f));
+  tx=e.offsetX-W*0.5-wx*sc; ty=e.offsetY-H*0.5-wy*sc;
+  draw(); hideHint();
+},{passive:false});
+
+cv.addEventListener('mousedown',e=>{
+  dragging=true; lastMX=e.clientX; lastMY=e.clientY;
+  cv.classList.add('dragging'); tip.style.display='none';
+});
+window.addEventListener('mousemove',e=>{
+  if(!dragging)return;
+  tx+=e.clientX-lastMX; ty+=e.clientY-lastMY;
+  lastMX=e.clientX; lastMY=e.clientY;
+  draw(); hideHint();
+});
+window.addEventListener('mouseup',()=>{dragging=false;cv.classList.remove('dragging');});
+
+let ltd=null;
+cv.addEventListener('touchstart',e=>{
+  if(e.touches.length===1){dragging=true;lastMX=e.touches[0].clientX;lastMY=e.touches[0].clientY;}
+  else if(e.touches.length===2){ltd=Math.hypot(e.touches[0].clientX-e.touches[1].clientX,e.touches[0].clientY-e.touches[1].clientY);}
+},{passive:true});
+cv.addEventListener('touchmove',e=>{
+  e.preventDefault();
+  if(e.touches.length===1&&dragging){
+    tx+=e.touches[0].clientX-lastMX; ty+=e.touches[0].clientY-lastMY;
+    lastMX=e.touches[0].clientX; lastMY=e.touches[0].clientY; draw(); hideHint();
+  } else if(e.touches.length===2&&ltd){
+    const d=Math.hypot(e.touches[0].clientX-e.touches[1].clientX,e.touches[0].clientY-e.touches[1].clientY);
+    const f=d/ltd;
+    const cx=(e.touches[0].clientX+e.touches[1].clientX)/2-cv.getBoundingClientRect().left;
+    const cy=(e.touches[0].clientY+e.touches[1].clientY)/2-cv.getBoundingClientRect().top;
+    const[wx,wy]=s2w(cx,cy);
+    sc=Math.max(0.025,Math.min(30,sc*f));
+    tx=cx-W*0.5-wx*sc; ty=cy-H*0.5-wy*sc; draw(); ltd=d;
+  }
+},{passive:false});
+cv.addEventListener('touchend',()=>{dragging=false;ltd=null;});
+
+// ═══════════════════════════════════════════════
+//  NAVIGATION
+// ═══════════════════════════════════════════════
+function doReset(){sc=0.5;tx=0;ty=H*0.35-ny(0)*sc;draw();}
+function doZoomIn(){zc(1.45);}
+function doZoomOut(){zc(0.68);}
+function zc(f){const[wx,wy]=s2w(W*0.5,H*0.5);sc=Math.max(0.025,Math.min(30,sc*f));tx=W*0.5-W*0.5-wx*sc;ty=H*0.5-H*0.5-wy*sc;draw();}
+function doJump(gen){ty=H*0.5-ny(gen)*sc;draw();}
+
+let hintGone=false;
+function hideHint(){if(!hintGone){hintGone=true;document.getElementById('hint').classList.add('gone');}}
+
+// ═══════════════════════════════════════════════
+//  LEGEND
+// ═══════════════════════════════════════════════
+const legEl=document.getElementById('legend');
+legEl.innerHTML='<div class="legend-title">ERA COLOUR GUIDE</div>'+
+  ERAS.filter((_,i)=>i%2===0||i===ERAS.length-1).map(e=>
+    `<div class="legend-item"><div class="legend-dot" style="background:${e.color}"></div><div class="legend-text">${e.name}</div></div>`
+  ).join('');
+
+// ═══════════════════════════════════════════════
+//  ANIMATION LOOP
+// ═══════════════════════════════════════════════
+let looping=false;
+function startLoop(){
+  if(looping)return; looping=true;
+  (function loop(){requestAnimationFrame(()=>{render();loop();})})();
+}
+
+// ═══════════════════════════════════════════════
+//  ENTRY
+// ═══════════════════════════════════════════════
+function enterTree(){
+  document.getElementById('splash').classList.add('gone');
+  document.getElementById('app').classList.add('visible');
+  new ResizeObserver(resize).observe(cv);
+  resize();
+  setTimeout(()=>{doReset();startLoop();},100);
+}
+</script>
+</body>
+</html>
